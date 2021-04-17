@@ -5,7 +5,6 @@ create table service.countries (
     country_name varchar
 );
 
-
 --https://www.html-code-generator.com/mysql/country-name-table
 INSERT INTO service.countries
 select 1,'Afghanistan' union all select
@@ -484,3 +483,27 @@ inner join
     ) s2
 ) s2
 on s1.join_field = s2.join_field;
+
+--create design for better performance
+SELECT DESIGNER_CREATE_DESIGN('my_design');
+SELECT DESIGNER_ADD_DESIGN_TABLES('my_design', 'schema_default.tb_users');
+SELECT DESIGNER_ADD_DESIGN_TABLES('my_design', 'schema_default.tb_logins');
+SELECT DESIGNER_ADD_DESIGN_TABLES('my_design', 'schema_billing.tb_operations');
+SELECT DESIGNER_ADD_DESIGN_TABLES('my_design', 'schema_orderstat.tb_orders');
+SELECT DESIGNER_ADD_DESIGN_QUERIES
+     ('my_design',
+     '/tmp/input/queries.txt',
+     'true'
+     );
+SELECT DESIGNER_SET_DESIGN_TYPE('my_design', 'comprehensive');
+SELECT DESIGNER_SET_OPTIMIZATION_OBJECTIVE('my_design', 'query');
+SELECT DESIGNER_RUN_POPULATE_DESIGN_AND_DEPLOY
+   ('my_design',
+    '/tmp/output/my_design_projections.sql',
+    '/tmp/output/my_design_deploy.sql',
+    'True', --Analyzes statistics
+    'True', --Doesn't deploy the design
+    'False', --Doesn't drop the design after deployment
+    'False' --Stops if it encounters an error
+    );
+SELECT DESIGNER_DROP_DESIGN('my_design');

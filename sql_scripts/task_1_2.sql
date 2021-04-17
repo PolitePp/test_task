@@ -1,26 +1,3 @@
-select country
-        , count(distinct uid) as count_users
-        , avg(days_between_registration_deposit)
-        , avg(days_between_deposit_order)
-from
-(
-    select tu.country
-            , tu.uid
-            , datediff('day', tu.registration_date, min(top.operation_date)) as days_between_registration_deposit
---             , coalesce(datediff('day', min(top.operation_date), min(tor.order_close_date)), 0) as days_between_deposit_order
-    from schema_default.tb_users tu
-    inner join schema_default.tb_logins tl
-    on tu.uid = tl.user_uid
-    inner join schema_billing.tb_operations top
-    on tl.login = top.login
-    where tl.account_type = 'real'
-            and top.operation_type = 'deposit'
-            and tu.registration_date >= current_date - 90
---             and tor.order_close_date >= current_date - 90
-    group by tu.country, tu.uid, tu.registration_date
-) s1
-group by country;
-
 with get_users as (
     select tu.country
             , tu.uid
