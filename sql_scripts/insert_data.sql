@@ -465,13 +465,14 @@ on s1.join_field = s2.join_field;
 
 insert into schema_orderstat.tb_orders(login, order_close_date)
 select s1.login
-        , service.random_date(registration_date, current_date)
+        , service.random_date(first_operation_date, current_date)
 from
 (
-    select login, tu.registration_date, randomint(10) as join_field
+    select tl.login, min(top.operation_date) as first_operation_date, randomint(10) as join_field
     from schema_default.tb_logins tl
-    inner join schema_default.tb_users tu
-    on tl.user_uid = tu.uid
+    inner join schema_billing.tb_operations top
+    on tl.login = top.login
+    group by tl.login
 ) s1
 inner join
 (
