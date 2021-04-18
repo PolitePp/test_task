@@ -1,3 +1,4 @@
+--Создал дополнительную схему, которая позволит нагенерировать данные
 CREATE SCHEMA SERVICE;
 
 create table service.countries (
@@ -5,7 +6,7 @@ create table service.countries (
     country_name varchar
 );
 
---https://www.html-code-generator.com/mysql/country-name-table
+--Информацию для справочника взял с сайта - https://www.html-code-generator.com/mysql/country-name-table
 INSERT INTO service.countries
 select 1,'Afghanistan' union all select
 2,'Aland Islands' union all select
@@ -266,12 +267,15 @@ BEGIN
     RETURN TO_TIMESTAMP(EXTRACT(EPOCH FROM d1) + RANDOMINT(FLOOR(EXTRACT(EPOCH FROM d2) - EXTRACT(EPOCH FROM d1))::INT));
 END;
 
+--Отдельная генерация datetime нужна для получения случайных login'ов
 CREATE OR REPLACE FUNCTION service.random_datetime (d1 DATE, d2 DATE) RETURN DATETIME
 AS
 BEGIN
     RETURN TO_TIMESTAMP(EXTRACT(EPOCH FROM d1) + RANDOMINT(FLOOR(EXTRACT(EPOCH FROM d2) - EXTRACT(EPOCH FROM d1))::INT));
 END;
 
+--Решил генерировать цифры на основе unixtimestamp, т.к. конкатенация 20 рандомных цифр randomint(10)||randomint(10) работает медленнее
+--Но такой способ работает только если на вход подаются даты с конца 2001 года, т.к. до этого могли быть даты, представление которых в unixtimestamp имеет длину 9
 CREATE OR REPLACE FUNCTION service.random_login (d1 DATETIME, d2 DATETIME) RETURN varchar(20)
 AS
 BEGIN
@@ -283,7 +287,7 @@ WITH seq AS (
     SELECT randomint(252) + 1 as num FROM (
         SELECT 1 FROM (
             SELECT date(0) + INTERVAL '1 second' AS se UNION ALL
-            SELECT date(0) + INTERVAL '1000000 seconds' AS se ) a --generate 1 million row
+            SELECT date(0) + INTERVAL '1000000 seconds' AS se ) a --Генерация 1кк записей
         TIMESERIES tm AS '1 second' OVER(ORDER BY se)
     ) b
 )
@@ -294,14 +298,20 @@ FROM seq s
 inner join service.countries c
 on s.num = c.id;
 
+--Т.к. в задании сказано, что у одного пользователя может быть несколько счетов
+-- , я решил нагенерировать значения от 0 до 5 (включительно). Это не совсем корректно
+-- , если я заранее не знаю, сколько у меня строк в tb_users, но для тестов подходит.
+-- Если заранее не известно кол-во, то можно воспользоваться способом, который я применил ниже для другой таблицы
+-- (см. вставку в schema_billing.tb_operations с типом "deposit")
 insert into schema_default.tb_logins(user_uid, login, account_type)
 select s1.uid
-        , randomint(10) || substr(service.random_login(service.random_datetime(date'2002-01-01', current_date)
-                                    , service.random_datetime(date'2002-01-01', current_date)), 2)
-        , case when random() < 0.2 then 'demo' else 'real' end
+        , randomint(10) || substr(service.random_login(service.random_datetime(s1.registration_date, current_date)
+                                    , service.random_datetime(s1.registration_date, current_date)), 2) --В начале на всякий случай добавил дополнительную рандомную цифру
+        , case when random() < 0.2 then 'demo' else 'real' end --Делаем для того, чтобы примерно 20% аккаунтов были с типом демо
 from
 (
     select uid
+            , registration_date
     from schema_default.tb_users
     order by uid
     limit 30000
@@ -321,12 +331,13 @@ cross join
 
 insert into schema_default.tb_logins(user_uid, login, account_type)
 select s1.uid
-        , randomint(10) || substr(service.random_login(service.random_datetime(date'2002-01-01', current_date)
-                                    , service.random_datetime(date'2002-01-01', current_date)), 2)
+        , randomint(10) || substr(service.random_login(service.random_datetime(s1.registration_date, current_date)
+                                    , service.random_datetime(s1.registration_date, current_date)), 2)
         , case when random() < 0.2 then 'demo' else 'real' end
 from
 (
     select uid
+            , registration_date
     from schema_default.tb_users
     order by uid
     limit 60000 offset 30000
@@ -344,12 +355,13 @@ cross join
 
 insert into schema_default.tb_logins(user_uid, login, account_type)
 select s1.uid
-        , randomint(10) || substr(service.random_login(service.random_datetime(date'2002-01-01', current_date)
-                                    , service.random_datetime(date'2002-01-01', current_date)), 2)
+        , randomint(10) || substr(service.random_login(service.random_datetime(s1.registration_date, current_date)
+                                    , service.random_datetime(s1.registration_date, current_date)), 2)
         , case when random() < 0.2 then 'demo' else 'real' end
 from
 (
     select uid
+            , registration_date
     from schema_default.tb_users
     order by uid
     limit 90000 offset 90000
@@ -365,12 +377,13 @@ cross join
 
 insert into schema_default.tb_logins(user_uid, login, account_type)
 select s1.uid
-        , randomint(10) || substr(service.random_login(service.random_datetime(date'2002-01-01', current_date)
-                                    , service.random_datetime(date'2002-01-01', current_date)), 2)
+        , randomint(10) || substr(service.random_login(service.random_datetime(s1.registration_date, current_date)
+                                    , service.random_datetime(s1.registration_date, current_date)), 2)
         , case when random() < 0.2 then 'demo' else 'real' end
 from
 (
     select uid
+            , registration_date
     from schema_default.tb_users
     order by uid
     limit 120000 offset 180000
@@ -384,12 +397,13 @@ cross join
 
 insert into schema_default.tb_logins(user_uid, login, account_type)
 select s1.uid
-        , randomint(10) || substr(service.random_login(service.random_datetime(date'2002-01-01', current_date)
-                                    , service.random_datetime(date'2002-01-01', current_date)), 2)
+        , randomint(10) || substr(service.random_login(service.random_datetime(s1.registration_date, current_date)
+                                    , service.random_datetime(s1.registration_date, current_date)), 2)
         , case when random() < 0.2 then 'demo' else 'real' end
 from
 (
     select uid
+            , registration_date
     from schema_default.tb_users
     order by uid
     limit 680000 offset 300000
@@ -399,6 +413,8 @@ cross join
     select 1
 ) s2;
 
+
+-- В начале делаем вставку депозитов. Дата операции должна быть больше, чем дата регистрации юзера для того, чтобы не нарушалась бизнес-логика
 insert into schema_billing.tb_operations(operation_type, operation_date, login, amount)
 select 'deposit'
         , service.random_date(registration_date, current_date)
@@ -407,26 +423,36 @@ select 'deposit'
                 when randomint(10) between 6 and 8 then cast(random() * 10000 as money(17, 2))
                 when randomint(10) between 4 and 5 then cast(random() * 1000 as money(17, 2))
                 when randomint(10) between 2 and 3 then cast(random() * 100 as money(17, 2))
-                else cast(random() * 100 as money(17, 2))
+                else cast(random() * 10 as money(17, 2))
         end
 from
 (
-    select login, tu.registration_date, randomint(10) as join_field
+    select login
+            , tu.registration_date
+            , randomint(10) as join_field
     from schema_default.tb_logins tl
     inner join schema_default.tb_users tu
     on tl.user_uid = tu.uid
 ) s1
 inner join
 (
-    SELECT randomint(10) as join_field FROM (
-        SELECT 1 FROM (
-            SELECT date(0) + INTERVAL '1 second' AS se UNION ALL
-            SELECT date(0) + INTERVAL '50 seconds' AS se ) a
-        TIMESERIES tm AS '1 second' OVER(ORDER BY se)
+    SELECT randomint(10) as join_field --Теперь у нас есть 50 строк, в каждой какое-то случайное число от 0 до 9.
+    -- Таким образом у нас будет разное количество депозитов по счетам
+    FROM
+    (
+        SELECT 1
+        FROM
+        (
+            SELECT date(0) + INTERVAL '1 second' AS se
+            UNION ALL
+            SELECT date(0) + INTERVAL '50 seconds' AS se
+        ) a
+        TIMESERIES tm AS '1 second' OVER (ORDER BY se)
     ) s2
 ) s2
 on s1.join_field = s2.join_field;
 
+--Для небольшого количества счетов полностью дублируем вывод на основе депозитов (т.е. итог по операциям будет 0)
 insert into schema_billing.tb_operations(operation_type, operation_date, login, amount)
 select 'withdrawal'
         , service.random_date(operation_date, current_date)
@@ -436,6 +462,7 @@ from schema_billing.tb_operations
 order by login
 limit 100000;
 
+--Для остальных генерируем случайную сумму вывода и дату операции, но не больше суммы депозита по соответствующей строчке
 insert into schema_billing.tb_operations(operation_type, operation_date, login, amount)
 select 'withdrawal'
         , service.random_date(operation_date, current_date)
@@ -462,6 +489,9 @@ inner join
 ) s2
 on s1.join_field = s2.join_field;
 
+--Чтобы у нас не было таких ситуаций, что сделка произошла до пополнения депозита
+-- , находим минимальную дату депозита и генерируем случайные даты от неё
+-- Логика распределения строк как при вставке в tb_operations
 insert into schema_orderstat.tb_orders(login, order_close_date)
 select s1.login
         , service.random_date(first_operation_date, current_date)
@@ -484,7 +514,9 @@ inner join
 ) s2
 on s1.join_field = s2.join_field;
 
---create design for better performance
+-- Использую особенности вертики, а именно создание дизайна для улучшения производительности запросов
+-- На основе используемых запросов создаются проекции таблиц, настроенные под конкретные запросы
+-- Подробная информация - https://www.vertica.com/docs/9.2.x/HTML/Content/Authoring/AdministratorsGuide/DBDAPI/WorkflowForRunningDatabaseDesignerProgrammatically.htm
 SELECT DESIGNER_CREATE_DESIGN('my_design');
 SELECT DESIGNER_ADD_DESIGN_TABLES('my_design', 'schema_default.tb_users');
 SELECT DESIGNER_ADD_DESIGN_TABLES('my_design', 'schema_default.tb_logins');
@@ -506,4 +538,5 @@ SELECT DESIGNER_RUN_POPULATE_DESIGN_AND_DEPLOY
     'False', --Doesn't drop the design after deployment
     'False' --Stops if it encounters an error
     );
-SELECT DESIGNER_DROP_DESIGN('my_design');
+--В конце необходимо дропнуть дизайн, но сначала нужно его применить. Это делается через vsql, подробнее описано в readme
+--SELECT DESIGNER_DROP_DESIGN('my_design');
