@@ -5,8 +5,10 @@ services:
     networks:
       - verticaspark
     container_name: spark-master
+    depends_on:
+      - pg_db
     volumes:
-      - ./spark_jobs:/opt/hadoopspark
+      - ./second_task/spark_jobs:/opt/spark_jobs
     ports:
       - "8080:8080"
       - "7077:7077"
@@ -34,16 +36,68 @@ services:
     environment:
       - "SPARK_MASTER=spark://spark-master:7077"
       - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+
   vertica:
     image: jbfavre/vertica
     container_name: vertica_db
     networks:
       - verticaspark
     volumes:
-      - ./input/:/tmp/input
-      - ./output/:/tmp/output
+      - ./first_task/input/:/tmp/input
+      - ./first_task/output/:/tmp/output
     ports:
       - 5433:5433
+
+  pg_db:
+    image: postgres:12.6
+    container_name: pg_db
+    volumes:
+      - ./second_task/sql_scripts:/opt/input_data
+    restart: always
+    networks:
+      - verticaspark
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=account_reconcil
+    ports:
+      - 5432:5432
+
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    networks:
+      - verticaspark
+    container_name: namenode
+    volumes:
+      - ./second_task/input_hdfs:/opt/input_hdfs
+    environment:
+      - CLUSTER_NAME=test
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - CORE_CONF_hadoop_http_staticuser_user=root
+      - CORE_CONF_hadoop_proxyuser_hue_hosts=*
+      - CORE_CONF_hadoop_proxyuser_hue_groups=*
+      - HDFS_CONF_dfs_webhdfs_enabled=true
+      - HDFS_CONF_dfs_permissions_enabled=false
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    networks:
+      - verticaspark
+    container_name: datanode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
 networks:
   verticaspark:
     external: true
