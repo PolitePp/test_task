@@ -24,3 +24,17 @@ Unzip
 ```
 git clone https://github.com/PolitePp/test_task.git
 ```
+
+Перейдите в корневую директорию проекта
+
+```
+cd test_task/
+```
+
+Запустите run.sh скрипт командой
+
+```
+sh run.sh
+```
+
+В данном bash скрипте указаны команды по разархивированию json файла, выполнения restore для postgres, а так же создание директории в hdfs и загрузки туда json файла
