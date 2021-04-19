@@ -4,7 +4,7 @@ Load data from database and json for reconciliation
 import configparser
 import sys
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, lower, to_date, when, udf
+from pyspark.sql.functions import col, lower, to_date, when, udf, sum as _sum
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 
 
@@ -73,20 +73,25 @@ def reconciliation(df1, df2, primary_key):
               , 'full') \
         .select([make_column_with_alias('df1', column) for column in df1.columns]
                 + [make_column_with_alias('df2', column) for column in df2.columns])
+    cols_for_comparing = []
     for column in df1.schema.names:
         if column == 'transaction_uid':
-            pass
-        elif column == 'amount':
+            continue
+        new_col_name = '{0}_is_equal'.format(column)
+        cols_for_comparing.append(new_col_name)
+        if column == 'amount':
             check_tolerance_udf = udf(check_tolerance_interval, IntegerType())
             common_df = common_df \
-                .withColumn('{0}_is_equal'.format(column)
+                .withColumn(new_col_name
                             , check_tolerance_udf(col('df1_{0}'.format(column))
                                                   , col('df2_{0}'.format(column))))
         else:
             common_df = common_df \
-                .withColumn('{0}_is_equal'.format(column)
+                .withColumn(new_col_name
                             , when(col('df1_{0}'.format(column)) == col('df2_{0}'.format(column))
                                    , 1).otherwise(0))
+    common_df = common_df.select([col('df1_transaction_uid'), col('df2_transaction_uid')]
+                                 + [col(column) for column in cols_for_comparing])
     return common_df
 
 
@@ -120,8 +125,33 @@ def check_tolerance_interval(first_num, second_num):
         return 0
 
 
-if __name__ == "__main__":
+def get_total_statistic(spark_ses, df_inp):
+    columns_of_df_stat = ['field_name', 'matching_record_count'
+                          , 'mismatch_record_count', 'matching_record_percentage']
+    # Count matching rows
+    c_matching = df_inp.filter(col('df1_transaction_uid').isNotNull()
+                               & col('df2_transaction_uid').isNotNull()).count()
+    # Count mismatch rows in db dataset
+    c_mismatch_db = df_inp.filter(col('df1_transaction_uid').isNull()
+                                  & col('df2_transaction_uid').isNotNull()).count()
+    # Count mismatch rows in json dataset
+    c_mismatch_json = df_inp.filter(col('df1_transaction_uid').isNotNull()
+                                    & col('df2_transaction_uid').isNull()).count()
+    rows_of_df_stat = [('matching_record_count', c_matching, 0, 0.0)
+                       , ('mismatch_records_from_db_count', c_mismatch_db, 0, 0.0)
+                       , ('mismatch_records_from_json_count', c_mismatch_json, 0, 0.0)]
+    for column in df_inp.columns:
+        if column.endswith('is_equal'):
+            match_count = df_inp.filter(col(column) == 1).count()
+            mismatch_count = df_inp.filter(col(column) == 0).count()
+            rows_of_df_stat.append((column[:-9], match_count, mismatch_count
+                                    , float((1 - mismatch_count / match_count) * 100)))
 
+    df_statistic = spark_ses.createDataFrame(rows_of_df_stat, columns_of_df_stat)
+    df_statistic.show()
+
+
+if __name__ == "__main__":
     spark = SparkSession \
         .builder \
         .appName('load_raw_level') \
@@ -139,6 +169,7 @@ if __name__ == "__main__":
     df_json = df_json.withColumn('transaction_date', to_date(col('transaction_date')))
     df_json = df_json.withColumn('amount', col('amount').cast('decimal(20,4)'))
 
-    reconciliation(df_pg, df_json, 'transaction_uid')
+    df_total = reconciliation(df_pg, df_json, 'transaction_uid')
+    get_total_statistic(spark, df_total)
 
     spark.stop()
