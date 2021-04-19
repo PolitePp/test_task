@@ -201,7 +201,7 @@ def write_corrupted_rows(hdfs_con, df_inp):
                 .coalesce(1)\
                 .write\
                 .mode('overwrite')\
-                .csv('{0}errors/{1}_mismatch.csv'.format(hdfs_url, column))
+                .csv('{0}errors/{1}_mismatch.csv'.format(hdfs_url, column[:-9]))
 
 
 if __name__ == "__main__":
